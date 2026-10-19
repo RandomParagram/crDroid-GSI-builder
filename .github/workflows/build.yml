@@ -57,9 +57,39 @@ jobs:
 
       - name: Apply Custom Unisoc Patch
         run: |
-          cd crdroid_tree/frameworks/native
-          git apply ../../../patches/0001-surfaceflinger-unisoc-color-fix.patch
-          echo "Unisoc SurfaceFlinger patch applied successfully!"
+          python3 - << 'EOF'
+          import sys
+
+          sf_path = "crdroid_tree/frameworks/native/services/surfaceflinger/SurfaceFlinger.cpp"
+
+          with open(sf_path, "r") as f:
+              content = f.read()
+
+          # 1. Inject the required header if not already present
+          header = "#include <cutils/properties.h>\n"
+          if header not in content:
+              content = header + content
+
+          # 2. Target the color matrix logic inside updateColorMatrixLocked
+          target = "colorMatrix = mGlobalColorTransformMatrix;"
+          replacement = """colorMatrix = mGlobalColorTransformMatrix;
+
+                  // Workaround for Unisoc video color inversion bug
+                  char prop[PROPERTY_VALUE_MAX];
+                  property_get("persist.sys.phh.disable_color_transform", prop, "0");
+                  if (strcmp(prop, "1") == 0 || strcmp(prop, "true") == 0) {
+                      colorMatrix = mat4();
+                  }"""
+
+          if target in content:
+              content = content.replace(target, replacement, 1)
+              with open(sf_path, "w") as f:
+                  f.write(content)
+              print("Successfully injected Unisoc SurfaceFlinger workaround!")
+          else:
+              print("ERROR: Target line not found in SurfaceFlinger.cpp", file=sys.stderr)
+              sys.exit(1)
+          EOF
 
       - name: Build crDroid GSI
         run: |
