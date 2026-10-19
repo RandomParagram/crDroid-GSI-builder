@@ -59,35 +59,36 @@ jobs:
         run: |
           python3 - << 'EOF'
           import sys
+          import re
 
           sf_path = "crdroid_tree/frameworks/native/services/surfaceflinger/SurfaceFlinger.cpp"
 
           with open(sf_path, "r") as f:
               content = f.read()
 
-          # 1. Inject the required header if not already present
+          # 1. Ensure properties header is included
           header = "#include <cutils/properties.h>\n"
           if header not in content:
               content = header + content
 
-          # 2. Target the color matrix logic inside updateColorMatrixLocked
-          target = "colorMatrix = mGlobalColorTransformMatrix;"
-          replacement = """colorMatrix = mGlobalColorTransformMatrix;
+          # 2. Target the Android 13 CompositionEngine color matrix line
+          pattern = r"refreshArgs\.colorTransformMatrix\s*=\s*mDrawingState\.colorMatrix;"
 
-                  // Workaround for Unisoc video color inversion bug
-                  char prop[PROPERTY_VALUE_MAX];
+          replacement = """char prop[PROPERTY_VALUE_MAX];
                   property_get("persist.sys.phh.disable_color_transform", prop, "0");
                   if (strcmp(prop, "1") == 0 || strcmp(prop, "true") == 0) {
-                      colorMatrix = mat4();
+                      refreshArgs.colorTransformMatrix = mat4();
+                  } else {
+                      refreshArgs.colorTransformMatrix = mDrawingState.colorMatrix;
                   }"""
 
-          if target in content:
-              content = content.replace(target, replacement, 1)
+          if re.search(pattern, content):
+              content = re.sub(pattern, replacement, content, count=1)
               with open(sf_path, "w") as f:
                   f.write(content)
-              print("Successfully injected Unisoc SurfaceFlinger workaround!")
+              print("SUCCESS: Injected Unisoc color transform workaround into Android 13 SurfaceFlinger!")
           else:
-              print("ERROR: Target line not found in SurfaceFlinger.cpp", file=sys.stderr)
+              print("ERROR: Could not locate refreshArgs.colorTransformMatrix in SurfaceFlinger.cpp", file=sys.stderr)
               sys.exit(1)
           EOF
 
