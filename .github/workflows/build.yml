@@ -95,9 +95,26 @@ jobs:
       - name: Build crDroid GSI
         run: |
           cd crdroid_tree
+
+          # 1. Generate the Treble target makefiles (treble_arm64_bvN, etc.)
+          cd device/phh/treble
+          if [ -f "crDroid.mk" ] || [ -f "crdroid.mk" ]; then
+              bash generate.sh $(ls crdroid.mk crDroid.mk 2>/dev/null | head -n 1 | sed 's/\.mk//')
+          elif [ -f "lineage.mk" ]; then
+              bash generate.sh lineage
+          else
+              bash generate.sh
+          fi
+          cd ../../..
+
+          # 2. Prevent Out-Of-Memory (OOM) crashes during Java / Metalava compilation
+          export _JAVA_OPTIONS="-Xmx4g"
+
+          # 3. Source environment and select GSI target
           source build/envsetup.sh
-          # Target: ARM64, A/B layout, Vanilla (lightest build)
           lunch treble_arm64_bvN-userdebug
+
+          # 4. Compile the system image
           make systemimage -j$(nproc --all)
 
       - name: Compress and Prepare Output
