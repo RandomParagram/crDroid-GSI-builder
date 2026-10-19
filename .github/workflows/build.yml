@@ -7,7 +7,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      steps:
       - name: Free Disk Space & Set Up 10GB Swap
         run: |
           # 1. Strip pre-installed software to maximize free disk space
