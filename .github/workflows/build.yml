@@ -9,7 +9,11 @@ jobs:
     steps:
       - name: Free Disk Space & Set Up 10GB Swap
         run: |
-          # 1. Strip pre-installed software to maximize free disk space
+          # 1. Turn off any existing swap so the file is not locked/busy
+          sudo swapoff -a || true
+          sudo rm -f /swapfile
+
+          # 2. Strip pre-installed software to maximize free disk space
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /usr/local/lib/android
           sudo rm -rf /opt/ghc
@@ -18,11 +22,13 @@ jobs:
           sudo docker image prune -a -f || true
           sudo apt-get clean
 
-          # 2. Create and activate a 10GB Swapfile to prevent OOM termination
-          sudo fallocate -l 10G /swapfile
+          # 3. Create, format, and activate the fresh 10GB swapfile
+          sudo fallocate -l 10G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=10240
           sudo chmod 600 /swapfile
           sudo mkswap /swapfile
           sudo swapon /swapfile
+
+          # 4. Print available RAM and Swap to logs
           free -h
 
       - name: Check Out Repository
