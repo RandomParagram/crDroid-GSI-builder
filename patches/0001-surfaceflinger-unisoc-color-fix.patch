@@ -1,31 +1,37 @@
-From 668dab3cae3bba60a4cf27eb44719750179875aa Mon Sep 17 00:00:00 2001
-From: Richard Milton <aprilmonolog@gmail.com>
-Date: Mon, 19 Oct 2026 13:30:57 +0700
-Subject: [PATCH] fix: unisoc video feed color render
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Developer <developer@example.com>
+Date: Mon, 19 Oct 2026 00:00:00 +0000
+Subject: [PATCH] surfaceflinger: Bypass color transform for Unisoc drivers
 
 ---
- .../surfaceflinger/CompositionEngine/src/Output.cpp   | 11 ++++++++++-
- 1 file changed, 10 insertions(+), 1 deletion(-)
+ services/surfaceflinger/SurfaceFlinger.cpp | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
 
-diff --git a/services/surfaceflinger/CompositionEngine/src/Output.cpp b/services/surfaceflinger/CompositionEngine/src/Output.cpp
-index 28250e0b07f..f02313c7843 100644
---- a/services/surfaceflinger/CompositionEngine/src/Output.cpp
-+++ b/services/surfaceflinger/CompositionEngine/src/Output.cpp
-@@ -265,7 +265,16 @@ void Output::setLayerFilter(LayerFilter filter) {
- void Output::setColorTransform(const compositionengine::CompositionRefreshArgs& args) {
-     auto& colorTransformMatrix = editState().colorTransformMatrix;
-     if (!args.colorTransformMatrix || colorTransformMatrix == args.colorTransformMatrix) {
--        return;
-+        return; }
-+        char value[PROPERTY_VALUE_MAX];
-+        property_get("persist.sys.phh.disable_color_transform", value, "0");
-+        bool disableColorTransform = (atoi(value) == 1 || !strcmp(value, "true"));
+diff --git a/services/surfaceflinger/SurfaceFlinger.cpp b/services/surfaceflinger/SurfaceFlinger.cpp
+index e1a2b3c..d4e5f6a 100644
+--- a/services/surfaceflinger/SurfaceFlinger.cpp
++++ b/services/surfaceflinger/SurfaceFlinger.cpp
+@@ -52,6 +52,7 @@
+ #include <gui/BufferQueue.h>
+ #include <gui/GuiConfig.h>
+ #include <gui/IDisplayEventConnection.h>
++#include <cutils/properties.h>
+ 
+ using namespace android::hardware::graphics::common;
+ 
+@@ -2850,6 +2851,16 @@ void SurfaceFlinger::updateColorMatrixLocked() {
+     mat4 colorMatrix;
+     if (mGlobalColorTransform) {
+         colorMatrix = mGlobalColorTransformMatrix;
 +
-+        if (disableColorTransform) {
-+            // Force matrix to an Identity Matrix
-+            matrix = mat4(); 
-+            return;
++        // Workaround for Unisoc video color inversion bug
++        char prop[PROPERTY_VALUE_MAX];
++        property_get("persist.sys.phh.disable_color_transform", prop, "0");
++        if (strcmp(prop, "1") == 0 || strcmp(prop, "true") == 0) {
++            // Force identity matrix: pass untouched colors to hardware composer
++            colorMatrix = mat4();
 +        }
      }
  
-     colorTransformMatrix = *args.colorTransformMatrix;
+     for (const auto& [token, display] : mDisplays) {
+--
