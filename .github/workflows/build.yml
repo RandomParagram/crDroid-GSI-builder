@@ -41,13 +41,19 @@ jobs:
           git config --global user.name "Builder"
           git config --global user.email "builder@example.com"
           mkdir crdroid_tree && cd crdroid_tree
+
           # Initialize crDroid manifest with shallow clone to save disk space
           repo init -u https://github.com/crdroidandroid/android.git -b 13.0 --depth=1
 
           # Add TrebleDroid local manifest (for GSI hardware compatibility)
           git clone https://github.com/TrebleDroid/treble_manifest.git .repo/local_manifests -b android-13.0
 
-          repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune -j$(nproc --all)
+          # FIX: Strip out conflicting duplicate 'github' remote and remove AOSP-only replace.xml
+          sed -i '/<remote.*name="github"/d' .repo/local_manifests/*.xml
+          rm -f .repo/local_manifests/replace.xml
+
+          # Sync the source tree
+          repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune -j4
 
       - name: Apply Custom Unisoc Patch
         run: |
